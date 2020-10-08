@@ -1,9 +1,8 @@
 """This module serves the WEB"""
-from configparser import ConfigParser
+from threading import Thread
 from bottle import route, run, static_file, request
 
-config = ConfigParser(allow_no_value=True)
-config.read('config.ini')
+_CONFIG = None
 
 
 @route('/content/map')
@@ -23,15 +22,15 @@ def hearts_content():
 
 @route('/submit/config', method='POST')
 def do_login():
-    config['contact1']['name'] = request.forms.get('contact1_name')
-    config['contact1']['phone'] = request.forms.get('contact1_num')
-    config['contact2']['name'] = request.forms.get('contact2_name')
-    config['contact2']['phone'] = request.forms.get('contact2_num')
-    config['contact3']['name'] = request.forms.get('contact3_name')
-    config['contact3']['phone'] = request.forms.get('contact3_num')
-    config['main']['interval'] = request.forms.get('interval')
+    _CONFIG['contact1']['name'] = request.forms.get('contact1_name')
+    _CONFIG['contact1']['phone'] = request.forms.get('contact1_num')
+    _CONFIG['contact2']['name'] = request.forms.get('contact2_name')
+    _CONFIG['contact2']['phone'] = request.forms.get('contact2_num')
+    _CONFIG['contact3']['name'] = request.forms.get('contact3_name')
+    _CONFIG['contact3']['phone'] = request.forms.get('contact3_num')
+    _CONFIG['main']['interval'] = request.forms.get('interval')
     with open('config.ini', 'w') as configfile:
-        config.write(configfile)
+        _CONFIG.write(configfile)
     return '{"command": 1}'
 
 
@@ -68,14 +67,14 @@ def config_content():
         return html
 
     html = '<form id="config_form" role="form">'
-    html += contact_field('Contact 1', 'contact1', config['contact1']['name'],
-                          config['contact1']['phone'])
-    html += contact_field('Contact 2', 'contact2', config['contact2']['name'],
-                          config['contact2']['phone'])
-    html += contact_field('Contact 3', 'contact3', config['contact3']['name'],
-                          config['contact3']['phone'])
+    html += contact_field('Contact 1', 'contact1', _CONFIG['contact1']['name'],
+                          _CONFIG['contact1']['phone'])
+    html += contact_field('Contact 2', 'contact2', _CONFIG['contact2']['name'],
+                          _CONFIG['contact2']['phone'])
+    html += contact_field('Contact 3', 'contact3', _CONFIG['contact3']['name'],
+                          _CONFIG['contact3']['phone'])
     html += text_field('Update Interval', 'interval', 'Seconds',
-                       config['main']['interval'])
+                       _CONFIG['main']['interval'])
     html += '<button type="submit" class="btn btn-primary">Write Config</button>'
     html += '</form> '
 
@@ -97,4 +96,19 @@ def send_static(filename):
     return static_file(filename, root='static')
 
 
-run(host='0.0.0.0', port=int(config['main']['http_port']))
+class WebServer(Thread):
+    """This is the WEB server class"""
+    def __init__(self, config):
+        Thread.__init__(self)
+        self.daemon = True
+        global _CONFIG
+        _CONFIG = config
+        self.port = int(config['main']['http_port'])
+
+    def run(self):
+        """This method serves the server"""
+        run(host='0.0.0.0', port=self.port)
+
+    def stop(self):
+        """This method stops the server"""
+        return
